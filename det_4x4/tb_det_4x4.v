@@ -1,4 +1,4 @@
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 
 module tb_det_4x4;
 
@@ -7,9 +7,7 @@ module tb_det_4x4;
     wire signed [7:0] det;
     wire overflow_flag;
 
-    integer cycles;
-
-    // Instância do módulo a ser testado
+    // Instancia o módulo sob teste
     det_4x4 uut (
         .clk(clk),
         .A(A),
@@ -17,55 +15,58 @@ module tb_det_4x4;
         .overflow_flag(overflow_flag)
     );
 
-    // Clock de 10ns
+    // Geração de clock (10ns de período)
     initial begin
         clk = 0;
         forever #5 clk = ~clk;
     end
 
-    // Lógica de teste
+    // Matriz usada nos testes
+    reg signed [7:0] mat [0:15];
+
+    // Função para empacotar a matriz em 128 bits
+    function [127:0] pack_matrix;
+        input dummy;  // parâmetro obrigatório para compatibilidade com Verilog-2001
+        integer i;
+        begin
+            pack_matrix = 128'b0;
+            for (i = 0; i < 16; i = i + 1) begin
+                pack_matrix = pack_matrix | ({{120{1'b0}}, mat[i]} << ((15 - i) * 8));
+            end
+        end
+    endfunction
+
+    // Sequência de testes
     initial begin
-        cycles = 0;
+        // Teste 1: matriz identidade 4x4
+        mat[ 0] = 1; mat[ 1] = 0; mat[ 2] = 0; mat[ 3] = 0;
+        mat[ 4] = 0; mat[ 5] = 1; mat[ 6] = 0; mat[ 7] = 0;
+        mat[ 8] = 0; mat[ 9] = 0; mat[10] = 1; mat[11] = 0;
+        mat[12] = 0; mat[13] = 0; mat[14] = 0; mat[15] = 1;
 
-        // Matriz: identidade -> determinante = 1
-        A = {
-            8'd1, 8'd0, 8'd0, 8'd0,
-            8'd0, 8'd1, 8'd0, 8'd0,
-            8'd0, 8'd0, 8'd1, 8'd0,
-            8'd0, 8'd0, 8'd0, 8'd1
-        };
+        A = pack_matrix(0);
+        @(posedge clk); #1;
+        $display("Identidade: det = %0d, overflow = %b", det, overflow_flag);
 
-        // Espera alguns ciclos para estabilizar
-        repeat (10) begin
-            @(posedge clk);
-            cycles = cycles + 1;
-        end
+        // Teste 2: matriz com linhas iguais (det = 0)
+        mat[ 0] = 1; mat[ 1] = 2; mat[ 2] = 3; mat[ 3] = 4;
+        mat[ 4] = 5; mat[ 5] = 6; mat[ 6] = 7; mat[ 7] = 8;
+        mat[ 8] = 1; mat[ 9] = 2; mat[10] = 3; mat[11] = 4;
+        mat[12] = 9; mat[13] = 10; mat[14] = 11; mat[15] = 12;
 
-        $display("Matriz identidade:");
-        $display("Ciclos de clock: %0d", cycles);
-        $display("Determinante: %0d", det);
-        $display("Overflow: %b", overflow_flag);
-        $display("-----------------------------");
+        A = pack_matrix(0);
+        @(posedge clk); #1;
+        $display("Linhas iguais: det = %0d, overflow = %b", det, overflow_flag);
 
-        // Teste 2: Matriz com overflow esperado
-        cycles = 0;
-        A = {
-            8'd10, 8'd20, 8'd30, 8'd40,
-            8'd50, 8'd60, 8'd70, 8'd80,
-            8'd90, 8'd100, 8'd110, 8'd120,
-            8'd130, 8'd140, 8'd150, 8'd160
-        };
+        // Teste 3: matriz com valores grandes (overflow esperado)
+        mat[ 0] = 10;  mat[ 1] = 20;  mat[ 2] = 30;  mat[ 3] = 40;
+        mat[ 4] = 50;  mat[ 5] = 60;  mat[ 6] = 70;  mat[ 7] = 80;
+        mat[ 8] = 90;  mat[ 9] = -100; mat[10] = -110; mat[11] = -120;
+        mat[12] = 100; mat[13] = 110; mat[14] = 120;  mat[15] = 127;
 
-        repeat (10) begin
-            @(posedge clk);
-            cycles = cycles + 1;
-        end
-
-        $display("Matriz com valores grandes:");
-        $display("Ciclos de clock: %0d", cycles);
-        $display("Determinante: %0d", det);
-        $display("Overflow: %b", overflow_flag);
-        $display("-----------------------------");
+        A = pack_matrix(0);
+        @(posedge clk); #1;
+        $display("Overflow esperado: det = %0d, overflow = %b", det, overflow_flag);
 
         $finish;
     end
